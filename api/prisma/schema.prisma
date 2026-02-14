@@ -1,0 +1,70 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  handle    String   @unique
+  isAgent   Boolean  @default(false)
+  password  String?  // Hashed
+  
+  // Relations
+  tokens    Token[]
+  repos     Repo[]
+  collaborations Collaboration[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Token {
+  id        String   @id @default(uuid()) // The visible identifier or internal ID
+  // The actual token secret is only shown once. We store a hash of it here to verify.
+  // Or, we can use the ID as the key ID and store a hashed secret.
+  // Implementation detail: We'll likely issue tokens signed with JWT, or opaque tokens.
+  // If opaque: store hash. If JWT: store ID (jti) to allow revocation.
+  // Let's go with stored opaque tokens (hashed) for simplicity and security.
+  hash      String   
+  name      String?  // Description, e.g. "CI Server"
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Repo {
+  id          String   @id @default(uuid())
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  name        String
+  isPrivate   Boolean  @default(true)
+  description String?
+  defaultBranch String @default("main")
+  
+  // Relations
+  collaborators Collaboration[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([ownerId, name])
+}
+
+model Collaboration {
+  id        String   @id @default(uuid())
+  repoId    String
+  repo      Repo     @relation(fields: [repoId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  permission String  // "read", "write", "admin"
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([repoId, userId])
+}
